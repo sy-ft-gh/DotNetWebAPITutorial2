@@ -95,6 +95,7 @@
     <Compile Include="DB\BooksAPIContext.cs" />
     <Compile Include="dto\BookDetailDto.cs" />
     <Compile Include="dto\BookDto.cs" />
+    <Compile Include="dto\DtoBase.cs" />
     <Compile Include="Global.asax.cs">
       <DependentUpon>Global.asax</DependentUpon>
     </Compile>

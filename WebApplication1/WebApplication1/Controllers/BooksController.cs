@@ -26,8 +26,8 @@ namespace WebApplication1.Controllers {
         // 引数のBookインスタンスをBookDtoインスタンスに代入するラムダ式
 
         // Typed lambda expression for Select() method. 
-        private static readonly Expression<Func<Book, BookDto>> AsBookDto =
-            x => new BookDto {
+        private static readonly Expression<Func<Book, BookInfo>> AsBookDto =
+            x => new BookInfo {
                 Title = x.Title,
                 Author = x.Author.Name,
                 Genre = x.Genre
@@ -61,17 +61,26 @@ namespace WebApplication1.Controllers {
             //      →フレームワーク側は別の処理を同時に実行し当メソッドが終わり次第結果をレスポンスとして返す
             // →つまり、このステップ以下は全て子スレッドで実行される。
 
-            // Include＝
-            BookDto book = await db.Books.Include(b => b.Author)
+            // Include＝結合条件
+            BookInfo book = await db.Books.Include(b => b.Author)
                 .Where(b => b.BookId == id)
                 // Selctorとして式木を指定する事でBook→BookDtoへのマッピングを行う
                 .Select(AsBookDto)
                 .FirstOrDefaultAsync();
+            var result = new BookDto();
             if (book == null) {
-                return NotFound();
+                // 結果にステータスコードとメッセージを設定(NotFound)
+                result.Status = ApiStatusCode.StatusNotFound.GetStatusCode();
+                result.Message = ApiStatusCode.StatusNotFound.GetMessage();
+            } else {
+                // 結果にステータスコードとメッセージを設定(OK)
+                result.Status = ApiStatusCode.StatusOK.GetStatusCode();
+                result.Message = ApiStatusCode.StatusOK.GetMessage();
+                // 取得データを格納
+                result.Data = book;
             }
 
-            return Ok(book);
+            return Ok(result);
         }
 
         /// <summary>
@@ -80,7 +89,7 @@ namespace WebApplication1.Controllers {
         /// <param name="genre">対象ジャンル</param>
         /// <returns>IDにマッチしたBookDto</returns>
         [Route("{genre}")]
-        public IQueryable<BookDto> GetBooksByGenre(string genre) {
+        public IQueryable<BookInfo> GetBooksByGenre(string genre) {
             // ジャンル名で検索
             // StringComparison.OrdinalIgnoreCase=小文字大文字を区別なくマッチ
             return db.Books.Include(b => b.Author)
@@ -98,19 +107,27 @@ namespace WebApplication1.Controllers {
             // include 参照先のオブジェクト（=DBのテーブル）を結合して取得する。
             var book = await (from b in db.Books.Include(b => b.Author)
                               where b.BookId == id
-                              select new BookDetailDto {
-                                  Title = b.Title,
-                                  Genre = b.Genre,
-                                  PublishDate = b.PublishDate,
-                                  Price = b.Price,
-                                  Description = b.Description,
-                                  Author = b.Author.Name
+                              select new BookDetail{
+                                Title = b.Title,
+                                Genre = b.Genre,
+                                PublishDate = b.PublishDate,
+                                Price = b.Price,
+                                Description = b.Description,
+                                Author = b.Author.Name
                               }).FirstOrDefaultAsync();
-
+            var result = new BookDetailDto();
             if (book == null) {
-                return NotFound();
+                // 結果にステータスコードとメッセージを設定(NotFound)
+                result.Status = ApiStatusCode.StatusNotFound.GetStatusCode();
+                result.Message = ApiStatusCode.StatusNotFound.GetMessage();
+            } else {
+                // 結果にステータスコードとメッセージを設定(OK)
+                result.Status = ApiStatusCode.StatusOK.GetStatusCode();
+                result.Message = ApiStatusCode.StatusOK.GetMessage();
+                // 取得データを格納
+                result.Data = book;
             }
-            return Ok(book);
+            return Ok(result);
         }
         /// <summary>
         /// Authorによる検索
@@ -118,7 +135,7 @@ namespace WebApplication1.Controllers {
         /// <param name="authorId">対象のAuthorId</param>
         /// <returns>BookDtoのQueryableオブジェクト</returns>
         [Route("~/api/authors/{authorId:int}/books")]
-        public IQueryable<BookDto> GetBooksByAuthor(int authorId) {
+        public IQueryable<BookInfo> GetBooksByAuthor(int authorId) {
             // Queryrableを返却する事でフレームワークからデータを抜き出してマッピングする
             return db.Books.Include(b => b.Author)
                 .Where(b => b.AuthorId == authorId)
@@ -131,7 +148,7 @@ namespace WebApplication1.Controllers {
         /// <param name="pubdate">対象の出版日</param>
         /// <returns></returns>
         [Route("date/{pubdate:datetime}")]
-        public IQueryable<BookDto> GetBooks(DateTime pubdate) {
+        public IQueryable<BookInfo> GetBooks(DateTime pubdate) {
             // DbFunctions.TruncateTime=時間の切り捨て
             // SQLServerではDateTime型は時間も含まれる
             // この時間部分での評価をせず年月日で評価をするため付加する
@@ -167,7 +184,6 @@ namespace WebApplication1.Controllers {
             }
             // ここではBooksテーブルを参照。BookshelfId=1のレコードが検索される
             var book = bookshelf.Books;
-
 
             return Ok(bookshelf);
         }
