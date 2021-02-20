@@ -15,4 +15,9 @@ namespace WebApplication1.dto {
         // BookInfoで基底クラスのDataを上書き
         public new BookInfo Data { get; set; }
     }
+    public class BooksDto : DtoBase {
+        // BookInfoのリストで基底クラスのDataを上書き
+        public new List<BookInfo> Data { get; set; }
+
+    }
 }

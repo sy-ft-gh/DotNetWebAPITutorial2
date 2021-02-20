@@ -15,7 +15,6 @@ using WebApplication1.DB;
 using WebApplication1.Models;
 using WebApplication1.dto;
 
-
 namespace WebApplication1.Controllers {
 
     [RoutePrefix("api/books")]
@@ -26,7 +25,7 @@ namespace WebApplication1.Controllers {
         // 引数のBookインスタンスをBookDtoインスタンスに代入するラムダ式
 
         // Typed lambda expression for Select() method. 
-        private static readonly Expression<Func<Book, BookInfo>> AsBookDto =
+        private static readonly Expression<Func<Book, BookInfo>> AsBookInfo =
             x => new BookInfo {
                 Title = x.Title,
                 Author = x.Author.Name,
@@ -65,7 +64,7 @@ namespace WebApplication1.Controllers {
             BookInfo book = await db.Books.Include(b => b.Author)
                 .Where(b => b.BookId == id)
                 // Selctorとして式木を指定する事でBook→BookDtoへのマッピングを行う
-                .Select(AsBookDto)
+                .Select(AsBookInfo)
                 .FirstOrDefaultAsync();
             var result = new BookDto();
             if (book == null) {
@@ -84,17 +83,61 @@ namespace WebApplication1.Controllers {
         }
 
         /// <summary>
+        /// タイトルでBook情報を検索する
+        /// </summary>
+        /// <param name="">対象ジャンル</param>
+        /// <returns>ジャンル名にマッチしたBookDto</returns>
+        [Route("search")]
+        [ResponseType(typeof(BooksDto))]
+        [HttpGet]
+        public async Task<IHttpActionResult> SearchBook([FromUri] SearchParam param) { 
+            if (!ModelState.IsValid) {
+                DtoBase NG_result = new DtoBase();
+                NG_result.Status = ApiStatusCode.StatusIllegalArg.GetStatusCode();
+                NG_result.Message = ApiStatusCode.StatusIllegalArg.GetMessage();
+                NG_result.Data = null;
+                return Ok(NG_result);
+            }
+            // bookとauthorを結合し引数のtitleを含むbookを検索
+
+            var qbooks = from x in db.Books
+                         join y in db.Authors on x.AuthorId equals y.AuthorId
+                         select new BookInfo() { Author = y.Name, Genre = x.Genre, Title = x.Title };
+            List<BookInfo> books = null;
+            if (param != null) {
+                if (!String.IsNullOrEmpty(param.title)) {
+                    qbooks = qbooks.Where(s => s.Title.Contains(param.title));
+                }
+            } else {
+                books = await qbooks.ToListAsync();
+            }
+            var OK_result = new BooksDto();
+            if (books == null || books.Count == 0) {
+                // 結果にステータスコードとメッセージを設定(NotFound)
+                OK_result.Status = ApiStatusCode.StatusNotFound.GetStatusCode();
+                OK_result.Message = ApiStatusCode.StatusNotFound.GetMessage() + string.Join(",", Request.GetQueryNameValuePairs().Select(e => e.Key + ":" + e.Value).ToArray());
+            } else {
+                // 結果にステータスコードとメッセージを設定(OK)
+                OK_result.Status = ApiStatusCode.StatusOK.GetStatusCode();
+                OK_result.Message = ApiStatusCode.StatusOK.GetMessage();
+                // 取得データを格納
+                OK_result.Data = books;
+            }
+            return Ok(OK_result);
+        }
+
+        /// <summary>
         /// ジャンルでBook情報を取得する
         /// </summary>
         /// <param name="genre">対象ジャンル</param>
-        /// <returns>IDにマッチしたBookDto</returns>
-        [Route("{genre}")]
+        /// <returns>ジャンル名にマッチしたBookDto</returns>
+        [Route("genre/{genre}")]
         public IQueryable<BookInfo> GetBooksByGenre(string genre) {
             // ジャンル名で検索
             // StringComparison.OrdinalIgnoreCase=小文字大文字を区別なくマッチ
             return db.Books.Include(b => b.Author)
                 .Where(b => b.Genre.Equals(genre, StringComparison.OrdinalIgnoreCase))
-                .Select(AsBookDto);
+                .Select(AsBookInfo);
         }
         /// <summary>
         /// Title,Author,Genre以外の項目を返却する
@@ -139,7 +182,7 @@ namespace WebApplication1.Controllers {
             // Queryrableを返却する事でフレームワークからデータを抜き出してマッピングする
             return db.Books.Include(b => b.Author)
                 .Where(b => b.AuthorId == authorId)
-                .Select(AsBookDto);
+                .Select(AsBookInfo);
         }
 
         /// <summary>
@@ -156,7 +199,7 @@ namespace WebApplication1.Controllers {
             return db.Books.Include(b => b.Author)
                 .Where(b => DbFunctions.TruncateTime(b.PublishDate)
                     == DbFunctions.TruncateTime(pubdate))
-                .Select(AsBookDto);
+                .Select(AsBookInfo);
         }
         /// <summary>
         /// Bookshelfによる検索
@@ -192,5 +235,9 @@ namespace WebApplication1.Controllers {
             db.Dispose();
             base.Dispose(disposing);
         }
+    }
+    public class SearchParam { 
+        public string title { get; set; }
+        public string genre { get; set; }
     }
 }
